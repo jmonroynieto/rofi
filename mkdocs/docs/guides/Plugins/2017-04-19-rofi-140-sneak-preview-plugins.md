@@ -282,6 +282,7 @@ Mode mode =
     ._get_display_value = _get_display_value,
     ._get_message       = NULL,
     ._get_completion    = NULL,
+    ._get_uid           = NULL,
     ._preprocess_input  = NULL,
     .private_data       = NULL,
     .free               = NULL,
@@ -312,6 +313,7 @@ Mode mode =
     ._get_display_value = _get_display_value,
     ._get_message       = NULL,
     ._get_completion    = NULL,
+    ._get_uid           = NULL,
     ._preprocess_input  = NULL,
     .private_data       = NULL,
     .free               = NULL,
@@ -321,6 +323,55 @@ Mode mode =
 The ABI_VERSION is defined in **rofi** header file, so that **rofi** can detect
 what ABI the plugin was compiled against. Not every function needs to be
 implemented, in the plugin we show the minimum set.
+
+### Migrating plugins to ABI 8
+
+ABI **8** is an intentional break from **7**. Rofi added an optional
+`_get_uid` function pointer on `struct rofi_mode` (after `_get_completion`)
+so modes can expose a stable per-entry id (used e.g. for entry weights on
+drun desktop ids). Field offsets after `_get_completion` changed; plugins
+built for ABI 7 are rejected at load time:
+
+```text
+ABI version of plugin: '…' does not match: 00000007 expecting: 00000008
+```
+
+**C plugins**
+
+1. Install / use headers from this rofi (`#include <rofi/mode.h>`,
+   `ABI_VERSION` is `8`).
+2. Set `.abi_version = ABI_VERSION`.
+3. In the static `Mode` object, add `._get_uid = NULL` (or a real callback)
+   **immediately after** `._get_completion`:
+
+```c
+Mode mode = {
+    .abi_version        = ABI_VERSION,
+    .name               = "my_mode",
+    /* … */
+    ._get_completion    = NULL,   /* or your completion callback */
+    ._get_uid           = NULL,   /* optional: stable id for weight keys */
+    ._preprocess_input  = NULL,
+    /* … */
+};
+```
+
+4. Rebuild and reinstall the shared library into the plugin directory.
+5. Smoke-test: `rofi -show my_mode -modi my_mode` (no ABI warning on stderr).
+
+Leaving `_get_uid` as `NULL` is valid. Callers then use the completion string
+as the entry key for features such as weights.
+
+Optional: implement `_get_uid` to return a heap-allocated stable id (e.g.
+path or desktop file name) when it differs from the display/completion text.
+
+**Rust plugins** (`rofi-mode` / `rofi-plugin-sys`, e.g. rofi-vscode-mode)
+
+1. Update the FFI `Mode` struct to match ABI 8 (insert `_get_uid` after
+   `_get_completion`; set `ABI_VERSION` to `8`).
+2. Rebuild the `cdylib` against the new bindings and reinstall the `.so`.
+3. Until upstream crates publish ABI 8, patch locally or pin a fork—do not
+   only change the number without fixing the layout.
 
 Lets modify each of the above functions to implement something useful.
 

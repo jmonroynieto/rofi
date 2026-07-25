@@ -32,7 +32,25 @@
 #include <gmodule.h>
 G_BEGIN_DECLS
 
-/** ABI version to check if loaded plugin is compatible. */
+/**
+ * ABI version to check if loaded plugin is compatible.
+ *
+ * **ABI 8** (intentional break from 7): optional #Mode::_get_uid was added to
+ * `struct rofi_mode` after `_get_completion`, shifting later fields. Rofi
+ * refuses to load plugins that still report 7.
+ *
+ * Migrating a plugin from ABI 7 → 8:
+ * 1. Rebuild against this rofi's headers (`pkg-config --cflags rofi` / install).
+ * 2. Set `.abi_version = ABI_VERSION` (must be 8).
+ * 3. In the static `Mode` initializer, add `._get_uid = NULL` (or your
+ *    callback) **immediately after** `._get_completion`. Leaving it NULL is
+ *    fine: weight keys then use #mode_get_completion.
+ * 4. Reinstall the `.so` into the plugin path and confirm load:
+ *    `rofi -show <modename> -modi <modename>` (no ABI mismatch warning).
+ *
+ * Rust (`rofi-mode` / `rofi-plugin-sys`): update the FFI `Mode` layout the same
+ * way, set `ABI_VERSION` to 8, rebuild the cdylib, reinstall.
+ */
 #define ABI_VERSION 8u
 
 /**
@@ -161,9 +179,10 @@ char *mode_get_completion(const Mode *mode, unsigned int selected_line);
  * @param mode The mode to query
  * @param selected_line The entry to query
  *
- * Return a stable identifier for the entry (for weight keys and similar),
- * when the mode provides one. If the mode has no dedicated uid, returns
- * NULL and the caller should use #mode_get_completion instead.
+ * Return a stable identifier for the entry (e.g. a desktop id for weight
+ * keys), when the mode provides #Mode::_get_uid. If the mode has no
+ * dedicated uid, returns NULL; the caller should use #mode_get_completion.
+ * Added in ABI 8; optional for plugins.
  *
  * @returns allocated string, or NULL
  */

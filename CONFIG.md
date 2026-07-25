@@ -233,3 +233,16 @@ Semantics:
 - **Distance scorer** (`sorting-method: "normal"` / levenshtein):
   `final = base ÷ weight`
 - `weight > 1.0` promotes an entry; `weight < 1.0` demotes it.
+
+### Plugins and ABI 8
+
+Entry weights use an optional mode API (`mode_get_uid`) introduced with
+**plugin ABI version 8**. That is an intentional break from ABI 7: out-of-tree
+modes (including community plugins such as `rofi-vscode-mode`) must be
+**rebuilt** against this rofi and report `.abi_version = 8`.
+
+- Plugins that only set `._get_uid = NULL` keep previous behaviour; weight
+  keys fall back to the completion string.
+- Migration steps (C and Rust): see `include/mode.h` (`ABI_VERSION`) and the
+  plugin guide under “Migrating plugins to ABI 8”
+  (`mkdocs/docs/guides/Plugins/…-plugins.md`).

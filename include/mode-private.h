@@ -228,7 +228,10 @@ struct rofi_mode {
   _mode_get_icon _get_icon;
   /** Get the 'completed' entry. */
   _mode_get_completion _get_completion;
-  /** Get a stable per-entry id, if better than the completion string. */
+  /**
+   * Optional stable per-entry id (ABI 8+). NULL falls back to completion.
+   * Must sit immediately after _get_completion in the layout.
+   */
   _mode_get_uid _get_uid;
 
   _mode_preprocess_input _preprocess_input;
