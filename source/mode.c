@@ -29,6 +29,7 @@
 #include "rofi.h"
 #include "xrmoptions.h"
 #include <glib.h>
+#include <pango/pango.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -36,6 +37,7 @@
 // This one should only be in mode implementations.
 #include "helper.h"
 #include "mode-private.h"
+#include "widgets/textbox.h"
 /**
  * @ingroup MODE
  * @{
@@ -123,9 +125,23 @@ char *mode_get_completion(const Mode *mode, unsigned int selected_line) {
   if (mode->_get_completion != NULL) {
     return mode->_get_completion(mode, selected_line);
   }
-  int state;
+  int state = 0;
   g_assert(mode->_get_display_value != NULL);
-  return mode->_get_display_value(mode, selected_line, &state, NULL, TRUE);
+  char *text =
+      mode->_get_display_value(mode, selected_line, &state, NULL, TRUE);
+  if ((state & MARKUP) && text != NULL) {
+    /* Row content is Pango markup (e.g. script mode with markup-rows).
+     * Strip tags so callers (Tab-complete insertion, clipboard copy, and
+     * match scoring/weighting) work against the visible text rather than
+     * raw markup + icon glyphs, which otherwise wrecks fuzzy match scores. */
+    char *plain = NULL;
+    if (pango_parse_markup(text, -1, 0, NULL, &plain, NULL, NULL) &&
+        plain != NULL) {
+      g_free(text);
+      return plain;
+    }
+  }
+  return text;
 }
 
 char *mode_get_uid(const Mode *mode, unsigned int selected_line) {
