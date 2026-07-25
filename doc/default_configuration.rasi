@@ -14,8 +14,13 @@ configuration {
         directories-first: true;
     }
 
-    /* Entry weights (sort: true only). Keys: desktop id (drun) or completion. */
+    /* Ranking weights (sort: true only). Combined: mode × entry. */
     // default-entry-weight: 1.0;
+    // mode-weights {
+    //     window: 1.2;
+    //     p: 2.5;          /* script alias, e.g. p:rofi-power-menu */
+    //     drun: 1.0;
+    // }
     // entry-weights {
     //     "firefox.desktop": 1.5;
     //     "gimp.desktop": 0.8;

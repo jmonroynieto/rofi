@@ -33,14 +33,24 @@
 G_BEGIN_DECLS
 
 /**
- * @defgroup WEIGHTS Entry Weights
+ * @defgroup WEIGHTS Entry and Mode Weights
  * @ingroup CONFIGURATION
  *
  * Scale match scores after matching, when sorting is enabled.
- * See CONFIG.md for the RASI syntax (`entry-weights`, `weight-patterns`).
+ * See CONFIG.md for the RASI syntax (`entry-weights`, `weight-patterns`,
+ * `mode-weights`).
+ *
+ * Combined multiplier: @c mode_weight × entry_weight.
  *
  * @{
  */
+
+/**
+ * Separator embedded by combi between child mode name and entry id in
+ * #mode_get_uid results so #rofi_resolve_weight can recover both parts.
+ * ASCII unit separator; not used in mode names.
+ */
+#define ROFI_WEIGHT_MODE_SEP '\x1f'
 
 /**
  * Score polarity for #rofi_apply_entry_weight.
@@ -64,16 +74,37 @@ void entry_weights_destroy(void);
 /**
  * @param entry_id Entry key (e.g. desktop id or completion string)
  *
- * Resolve weight: exact match, then first matching glob, else
- * #Settings::default_entry_weight.
+ * Resolve entry weight: exact match, then first matching glob, else
+ * #Settings::default_entry_weight. Does not include mode weight.
  *
  * @returns multiplier (always > 0)
  */
 double entry_weights_lookup(const char *entry_id);
 
 /**
+ * @param mode_name Mode name (e.g. "drun", "window", script alias "p")
+ *
+ * Resolve mode weight from `mode-weights`; default 1.0 when unset.
+ *
+ * @returns multiplier (always > 0)
+ */
+double mode_weights_lookup(const char *mode_name);
+
+/**
+ * @param entry_id            Entry uid/completion; may be namespaced
+ *                            @c "mode" ROFI_WEIGHT_MODE_SEP "entry" (combi)
+ * @param fallback_mode_name  Used when @p entry_id is not namespaced
+ *                            (typically #mode_get_name of the active mode)
+ *
+ * Combined weight: @c mode_weights_lookup × entry_weights_lookup.
+ *
+ * @returns multiplier (always > 0)
+ */
+double rofi_resolve_weight(const char *entry_id, const char *fallback_mode_name);
+
+/**
  * @param raw_score Score from the matcher
- * @param weight    From #entry_weights_lookup
+ * @param weight    From #rofi_resolve_weight / #entry_weights_lookup
  * @param polarity  Confidence vs distance
  *
  * Apply @p weight to @p raw_score.
@@ -90,7 +121,7 @@ int rofi_apply_entry_weight(int raw_score, double weight,
  * @param key    Lookup key (copied)
  * @param weight Multiplier
  *
- * Insert or replace an exact-match weight (also used by tests).
+ * Insert or replace an exact-match entry weight (also used by tests).
  */
 void entry_weights_set_exact(const char *key, double weight);
 
@@ -102,8 +133,19 @@ void entry_weights_set_exact(const char *key, double weight);
  */
 void entry_weights_add_pattern(const char *pattern, double weight);
 
-/** Drop exact and pattern rules; keep module allocated. */
+/**
+ * @param mode_name Mode name key (copied)
+ * @param weight    Multiplier
+ *
+ * Insert or replace a mode weight (also used by tests).
+ */
+void mode_weights_set(const char *mode_name, double weight);
+
+/** Drop exact and pattern entry rules; keep module allocated. */
 void entry_weights_clear(void);
+
+/** Drop mode weight rules; keep module allocated. */
+void mode_weights_clear(void);
 
 /** @} */
 

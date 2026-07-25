@@ -35,6 +35,7 @@
 #include <stdlib.h>
 
 #include "mode-private.h"
+#include "weights.h"
 #include "widgets/textbox.h"
 #include <modes/modes.h>
 #include <pango/pango.h>
@@ -291,12 +292,22 @@ static char *combi_get_uid(const Mode *sw, unsigned int index) {
     if (index >= pd->starts[i] && index < (pd->starts[i] + pd->lengths[i])) {
       unsigned int local = index - pd->starts[i];
       Mode *child = pd->switchers[i].mode;
-      char *uid = mode_get_uid(child, local);
-      if (uid != NULL) {
-        return uid;
+      char *entry_id = mode_get_uid(child, local);
+      if (entry_id == NULL) {
+        /* Child has no dedicated uid: use its completion (not combi's !mode
+         * prefix). */
+        entry_id = mode_get_completion(child, local);
       }
-      /* Child has no dedicated uid: use its completion (not combi's !mode prefix). */
-      return mode_get_completion(child, local);
+      /*
+       * Namespace as "mode\x1fentry" so weights can apply mode-weights (by
+       * child mode name / script alias) and entry-weights independently.
+       */
+      const char *mname = mode_get_name(child);
+      char *namespaced = g_strdup_printf("%s%c%s", mname ? mname : "",
+                                         ROFI_WEIGHT_MODE_SEP,
+                                         entry_id ? entry_id : "");
+      g_free(entry_id);
+      return namespaced;
     }
   }
   g_assert_not_reached();

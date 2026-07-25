@@ -34,6 +34,7 @@
 #include "settings.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /** Minimum weight to avoid division by zero / score inversion. */
 #define WEIGHT_EPSILON 1e-6
@@ -52,6 +53,9 @@ static GHashTable *exact_weights = NULL;
 
 /** Ordered list of WeightPattern*; first match wins. */
 static GList *pattern_weights = NULL;
+
+/** Mode name → heap-allocated gdouble. */
+static GHashTable *mode_weights = NULL;
 
 static void weight_pattern_free(gpointer data) {
   WeightPattern *wp = (WeightPattern *)data;
@@ -125,6 +129,22 @@ static void load_properties_as_patterns(ThemeWidget *wid) {
   }
 }
 
+static void load_properties_as_mode_weights(ThemeWidget *wid) {
+  if (wid == NULL || wid->properties == NULL) {
+    return;
+  }
+  GHashTableIter iter;
+  gpointer key, value;
+  g_hash_table_iter_init(&iter, wid->properties);
+  while (g_hash_table_iter_next(&iter, &key, &value)) {
+    Property *p = (Property *)value;
+    if (p == NULL || p->name == NULL) {
+      continue;
+    }
+    mode_weights_set(p->name, property_to_weight(p));
+  }
+}
+
 /**
  * Find a direct child of a ThemeWidget by name.
  */
@@ -151,11 +171,22 @@ void entry_weights_clear(void) {
   }
 }
 
+void mode_weights_clear(void) {
+  if (mode_weights) {
+    g_hash_table_remove_all(mode_weights);
+  }
+}
+
 void entry_weights_destroy(void) {
   entry_weights_clear();
+  mode_weights_clear();
   if (exact_weights) {
     g_hash_table_destroy(exact_weights);
     exact_weights = NULL;
+  }
+  if (mode_weights) {
+    g_hash_table_destroy(mode_weights);
+    mode_weights = NULL;
   }
 }
 
@@ -184,8 +215,22 @@ void entry_weights_add_pattern(const char *pattern, double weight) {
   pattern_weights = g_list_append(pattern_weights, wp);
 }
 
+void mode_weights_set(const char *mode_name, double weight) {
+  if (mode_name == NULL) {
+    return;
+  }
+  if (mode_weights == NULL) {
+    mode_weights =
+        g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+  }
+  double *val = g_malloc(sizeof(double));
+  *val = clamp_weight(weight);
+  g_hash_table_replace(mode_weights, g_strdup(mode_name), val);
+}
+
 void entry_weights_init(void) {
   entry_weights_clear();
+  mode_weights_clear();
 
   ThemeWidget *exact = widget_child(rofi_configuration, "entry-weights");
   if (exact) {
@@ -197,9 +242,17 @@ void entry_weights_init(void) {
     load_properties_as_patterns(patterns);
   }
 
-  g_debug("Entry weights loaded: %u exact, %u patterns (default=%g)",
+  ThemeWidget *modes = widget_child(rofi_configuration, "mode-weights");
+  if (modes) {
+    load_properties_as_mode_weights(modes);
+  }
+
+  g_debug("Weights loaded: %u entry exact, %u patterns, %u modes "
+          "(default_entry=%g)",
           exact_weights ? g_hash_table_size(exact_weights) : 0,
-          g_list_length(pattern_weights), config.default_entry_weight);
+          g_list_length(pattern_weights),
+          mode_weights ? g_hash_table_size(mode_weights) : 0,
+          config.default_entry_weight);
 }
 
 double entry_weights_lookup(const char *entry_id) {
@@ -227,6 +280,41 @@ double entry_weights_lookup(const char *entry_id) {
   }
 
   return def;
+}
+
+double mode_weights_lookup(const char *mode_name) {
+  if (mode_name != NULL && mode_weights != NULL) {
+    double *found = g_hash_table_lookup(mode_weights, mode_name);
+    if (found) {
+      return *found;
+    }
+  }
+  return 1.0;
+}
+
+double rofi_resolve_weight(const char *entry_id,
+                           const char *fallback_mode_name) {
+  const char *mode_name = fallback_mode_name;
+  const char *entry_key = entry_id;
+  char *owned_mode = NULL;
+
+  if (entry_id != NULL) {
+    const char *sep = strchr(entry_id, ROFI_WEIGHT_MODE_SEP);
+    if (sep != NULL) {
+      owned_mode = g_strndup(entry_id, (gsize)(sep - entry_id));
+      mode_name = owned_mode;
+      entry_key = sep + 1;
+      /* Empty entry key after separator: treat as no entry id. */
+      if (entry_key[0] == '\0') {
+        entry_key = NULL;
+      }
+    }
+  }
+
+  double mode_w = mode_weights_lookup(mode_name);
+  double entry_w = entry_weights_lookup(entry_key);
+  g_free(owned_mode);
+  return clamp_weight(mode_w * entry_w);
 }
 
 int rofi_apply_entry_weight(int raw_score, double weight,

@@ -474,11 +474,13 @@ static void filter_elements(thread_state *ts,
         char *str = mode_get_completion(t->state->sw, i);
         glong slen = g_utf8_strlen(str, -1);
         /*
-         * Weight key is the mode uid when available (e.g. desktop id),
-         * otherwise the completion string already in hand.
+         * Combined weight = mode-weight × entry-weight.
+         * Combi uids are namespaced "mode\x1fentry"; other modes use
+         * mode_get_name() as the mode key and uid/completion as the entry.
          */
         char *uid = mode_get_uid(t->state->sw, i);
-        double weight = entry_weights_lookup(uid ? uid : str);
+        double weight =
+            rofi_resolve_weight(uid ? uid : str, mode_get_name(t->state->sw));
         g_free(uid);
         switch (config.sorting_method_enum) {
         case SORT_FZF: {

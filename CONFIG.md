@@ -195,17 +195,34 @@ parse `~/.config/rofi/myConfig.rasi` and then load the theme `myTheme`.  More
 information can be obtained from the **rofi-theme(5)** manpage.  Imports can be
 nested.
 
-## Entry weights (ranking)
+## Entry and mode weights (ranking)
 
-When sorting is enabled (`sort: true;`), match scores can be scaled by per-entry
-weight multipliers. Weights are applied **after** the matcher runs and do not
-change matching itself. With `-no-sort` / `sort: false`, weights are ignored so
-input order is preserved.
+When sorting is enabled (`sort: true;`), match scores can be scaled by
+**mode** and **entry** weight multipliers. Weights are applied **after** the
+matcher runs and do not change matching itself. With `-no-sort` /
+`sort: false`, weights are ignored so input order is preserved.
+
+Combined multiplier:
+
+```text
+weight = mode_weight × entry_weight
+```
 
 ```css
 configuration {
-    /* Baseline multiplier when no override matches (default 1.0). */
+    /* Baseline entry multiplier when no entry override matches (default 1.0). */
     default-entry-weight: 1.0;
+
+    /* Boost or demote every row from a mode (combi-friendly).
+     * Keys are mode names: built-ins (window, drun, run, …) or the script
+     * alias before the colon in combi-modes / modes
+     * (e.g. "p" for "p:rofi-power-menu --confirm=''").
+     * Unlisted modes use 1.0. */
+    mode-weights {
+        window: 1.2;
+        p: 2.5;
+        drun: 1.0;
+    }
 
     /* Exact keys match the mode's entry uid: the desktop id for drun
      * ("firefox.desktop"), the completion string for other modes (path,
@@ -216,7 +233,7 @@ configuration {
         "gimp.desktop": 0.8;
     }
 
-    /* Glob patterns (* and ?); first match wins after exact lookup. */
+    /* Glob patterns (* and ?); first match wins after exact entry lookup. */
     weight-patterns {
         "*.sh": 0.7;
         "calc:*": 1.3;
@@ -233,6 +250,11 @@ Semantics:
 - **Distance scorer** (`sorting-method: "normal"` / levenshtein):
   `final = base ÷ weight`
 - `weight > 1.0` promotes an entry; `weight < 1.0` demotes it.
+- **Combi**: each child mode’s name (or script alias) is used for
+  `mode-weights`. Entry keys are still the child’s uid/completion (e.g.
+  `firefox.desktop`), not a mode-prefixed string in config.
+- Standalone modes (`-show drun`, etc.): `mode-weights` key is that mode’s
+  name; same entry rules apply.
 
 ### Plugins and ABI 8
 

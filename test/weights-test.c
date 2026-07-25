@@ -1,7 +1,7 @@
 /*
  * rofi
  *
- * Unit tests for entry weight lookup and score scaling.
+ * Unit tests for entry/mode weight lookup and score scaling.
  */
 
 #include "config.h"
@@ -54,10 +54,13 @@ int main(G_GNUC_UNUSED int argc, G_GNUC_UNUSED char **argv) {
   config.sort = TRUE;
   config.default_entry_weight = 1.0;
   entry_weights_clear();
+  mode_weights_clear();
 
   /* ---- Lookup: default when empty ---- */
   TASSERTD(entry_weights_lookup("firefox.desktop"), 1.0);
   TASSERTD(entry_weights_lookup(NULL), 1.0);
+  TASSERTD(mode_weights_lookup("drun"), 1.0);
+  TASSERTD(mode_weights_lookup(NULL), 1.0);
 
   /* ---- Exact overrides ---- */
   entry_weights_set_exact("firefox.desktop", 1.5);
@@ -79,6 +82,35 @@ int main(G_GNUC_UNUSED int argc, G_GNUC_UNUSED char **argv) {
   config.default_entry_weight = 0.5;
   TASSERTD(entry_weights_lookup("no-match-entry"), 0.5);
   config.default_entry_weight = 1.0;
+
+  /* ---- Mode weights ---- */
+  mode_weights_set("p", 2.5);
+  mode_weights_set("window", 1.2);
+  mode_weights_set("drun", 0.5);
+  TASSERTD(mode_weights_lookup("p"), 2.5);
+  TASSERTD(mode_weights_lookup("window"), 1.2);
+  TASSERTD(mode_weights_lookup("drun"), 0.5);
+  TASSERTD(mode_weights_lookup("run"), 1.0);
+
+  /* ---- Resolve: mode × entry (standalone key + fallback mode) ---- */
+  TASSERTD(rofi_resolve_weight("firefox.desktop", "drun"), 1.5 * 0.5);
+  TASSERTD(rofi_resolve_weight("other.desktop", "window"), 1.0 * 1.2);
+  TASSERTD(rofi_resolve_weight(NULL, "p"), 1.0 * 2.5);
+  TASSERTD(rofi_resolve_weight("firefox.desktop", NULL), 1.5 * 1.0);
+
+  /* ---- Resolve: combi-namespaced "mode\x1fentry" ---- */
+  {
+    char ns[128];
+    snprintf(ns, sizeof(ns), "p%cShut down", ROFI_WEIGHT_MODE_SEP);
+    TASSERTD(rofi_resolve_weight(ns, "combi"), 2.5 * 1.0);
+
+    snprintf(ns, sizeof(ns), "drun%cfirefox.desktop", ROFI_WEIGHT_MODE_SEP);
+    TASSERTD(rofi_resolve_weight(ns, "combi"), 0.5 * 1.5);
+
+    /* Namespaced mode overrides fallback mode name. */
+    snprintf(ns, sizeof(ns), "p%cother.desktop", ROFI_WEIGHT_MODE_SEP);
+    TASSERTD(rofi_resolve_weight(ns, "drun"), 2.5 * 1.0);
+  }
 
   /* ---- Confidence polarity (higher is better): final = raw * weight ---- */
   {
