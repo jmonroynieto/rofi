@@ -63,6 +63,7 @@ typedef struct {
     char **str;
     void *pointer;
     char *charc;
+    double *dnum;
   } value;
   char *mem;
   const char *comment;
@@ -360,6 +361,14 @@ static XrmOption xrmOptions[] = {
         {.str = &config.sorting_method},
         NULL,
         "Choose sort strategy: normal (levenshtein) or fzf.",
+    },
+    {
+        xrm_Double,
+        CONFIG_DEFAULT,
+        "default-entry-weight",
+        {.dnum = &config.default_entry_weight},
+        NULL,
+        "Default entry weight multiplier for ranking (1.0 = unchanged).",
     },
     {
         xrm_Boolean,
@@ -761,6 +770,18 @@ static void config_parse_cmd_option(XrmOption *option) {
       option->source = (option->source & ~3) | CONFIG_CMDLINE;
     }
     break;
+  case xrm_Double: {
+    char *strv = NULL;
+    if (find_arg_str(key, &strv) == TRUE && strv != NULL) {
+      char *end = NULL;
+      double v = g_ascii_strtod(strv, &end);
+      if (end != strv) {
+        *(option->value.dnum) = v;
+        option->source = (option->source & ~3) | CONFIG_CMDLINE;
+      }
+    }
+    break;
+  }
   default:
     break;
   }
@@ -932,6 +953,30 @@ static gboolean __config_parser_set_property(XrmOption *option,
     }
     *(option->value.charc) = (p->value.s[0]);
     option->source = (option->source & ~3) | CONFIG_FILE_THEME;
+  } else if (option->type == xrm_Double) {
+    if (p->type == P_DOUBLE) {
+      *(option->value.dnum) = p->value.f;
+      option->source = (option->source & ~3) | CONFIG_FILE_THEME;
+    } else if (p->type == P_INTEGER) {
+      *(option->value.dnum) = (double)p->value.i;
+      option->source = (option->source & ~3) | CONFIG_FILE_THEME;
+    } else if (p->type == P_STRING && p->value.s != NULL) {
+      char *end = NULL;
+      double v = g_ascii_strtod(p->value.s, &end);
+      if (end == p->value.s) {
+        *error = g_strdup_printf(
+            "Option: %s needs to be set with a number not a %s.", option->name,
+            PropertyTypeName[p->type]);
+        return TRUE;
+      }
+      *(option->value.dnum) = v;
+      option->source = (option->source & ~3) | CONFIG_FILE_THEME;
+    } else {
+      *error =
+          g_strdup_printf("Option: %s needs to be set with a number not a %s.",
+                          option->name, PropertyTypeName[p->type]);
+      return TRUE;
+    }
   } else {
     // TODO add type
     *error = g_strdup_printf("Option: %s is not of a supported type: %s.",
@@ -1039,6 +1084,12 @@ static void config_parse_dump_config_option(FILE *out, XrmOption *option) {
     }
     fprintf(out, " /* unsupported */");
     break;
+  case xrm_Double: {
+    char buf[G_ASCII_DTOSTR_BUF_SIZE];
+    g_ascii_dtostr(buf, sizeof(buf), *(option->value.dnum));
+    fprintf(out, "%s", buf);
+    break;
+  }
   default:
     break;
   }
@@ -1134,6 +1185,22 @@ static void print_option_snumber(XrmOption *xo, int is_term) {
     printf(" (%s)\n", ConfigSourceStr[xo->source & 3]);
   }
 }
+static void print_option_double(XrmOption *xo, int is_term) {
+  int l = strlen(xo->name);
+  char buf[G_ASCII_DTOSTR_BUF_SIZE];
+  g_ascii_dtostr(buf, sizeof(buf), *(xo->value.dnum));
+  if (is_term) {
+    printf("\t" color_bold "-%s" color_reset " [number]%-*c%s\n", xo->name,
+           30 - l, ' ', xo->comment);
+    printf("\t" color_italic "%s" color_reset, buf);
+    printf(" " color_green "(%s)" color_reset "\n",
+           ConfigSourceStr[xo->source & 3]);
+  } else {
+    printf("\t-%s [number]%-*c%s\n", xo->name, 30 - l, ' ', xo->comment);
+    printf("\t\t%s", buf);
+    printf(" (%s)\n", ConfigSourceStr[xo->source & 3]);
+  }
+}
 static void print_option_char(XrmOption *xo, int is_term) {
   int l = strlen(xo->name);
   if (is_term) {
@@ -1183,6 +1250,9 @@ static void print_option(XrmOption *xo, int is_term) {
     break;
   case xrm_Char:
     print_option_char(xo, is_term);
+    break;
+  case xrm_Double:
+    print_option_double(xo, is_term);
     break;
   default:
     break;
@@ -1255,6 +1325,13 @@ static char *config_parser_return_display_help_entry(XrmOption *option,
           "<b%-*s</b> (\\x%02X) <span style='italic' size='small'>%s</span>",
           ll, option->name, *(option->value.charc), option->comment);
     }
+  case xrm_Double: {
+    char buf[G_ASCII_DTOSTR_BUF_SIZE];
+    g_ascii_dtostr(buf, sizeof(buf), *(option->value.dnum));
+    return g_markup_printf_escaped(
+        "<b>%-*s</b> (%s) <span style='italic' size='small'>%s</span>", ll,
+        option->name, buf, option->comment);
+  }
   default:
     break;
   }

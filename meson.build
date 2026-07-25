@@ -236,6 +236,7 @@ rofi_sources = files(
         'source/timings.c',
         'source/history.c',
         'source/theme.c',
+        'source/weights.c',
         'source/rofi-icon-fetcher.c',
         'source/css-colors.c',
         'source/view.c',
@@ -272,6 +273,7 @@ rofi_sources = files(
         'include/timings.h',
         'include/history.h',
         'include/theme.h',
+        'include/weights.h',
         'include/rofi-types.h',
         'include/css-colors.h',
         'include/widgets/box.h',
@@ -433,6 +435,16 @@ test('history test', executable('history.test', [
     ],
     objects: rofi.extract_objects([
         'source/history.c',
+        'config/config.c',
+    ]),
+    dependencies: deps,
+))
+
+test('weights test', executable('weights.test', [
+        'test/weights-test.c',
+    ],
+    objects: rofi.extract_objects([
+        'source/weights.c',
         'config/config.c',
     ]),
     dependencies: deps,

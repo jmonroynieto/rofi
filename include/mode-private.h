@@ -94,6 +94,16 @@ typedef char *(*_mode_get_completion)(const Mode *sw,
                                       unsigned int selected_line);
 
 /**
+ * @param sw The #Mode pointer
+ * @param selected_line The selected line
+ *
+ * Optional stable per-entry id (e.g. desktop id), distinct from completion.
+ *
+ * @return allocated uid string
+ */
+typedef char *(*_mode_get_uid)(const Mode *sw, unsigned int selected_line);
+
+/**
  * @param data The #Mode pointer
  * @param tokens  List of (input) tokens to match.
  * @param index   The current selected index.
@@ -218,6 +228,8 @@ struct rofi_mode {
   _mode_get_icon _get_icon;
   /** Get the 'completed' entry. */
   _mode_get_completion _get_completion;
+  /** Get a stable per-entry id, if better than the completion string. */
+  _mode_get_uid _get_uid;
 
   _mode_preprocess_input _preprocess_input;
 

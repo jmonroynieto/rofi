@@ -128,6 +128,16 @@ char *mode_get_completion(const Mode *mode, unsigned int selected_line) {
   return mode->_get_display_value(mode, selected_line, &state, NULL, TRUE);
 }
 
+char *mode_get_uid(const Mode *mode, unsigned int selected_line) {
+  g_assert(mode != NULL);
+  if (mode->_get_uid != NULL) {
+    return mode->_get_uid(mode, selected_line);
+  }
+  /* No dedicated id: callers should use the completion string instead.
+   * Returning NULL avoids a second completion allocation in the filter path. */
+  return NULL;
+}
+
 ModeMode mode_result(Mode *mode, int menu_retv, char **input,
                      unsigned int selected_line) {
   if (menu_retv & MENU_NEXT) {

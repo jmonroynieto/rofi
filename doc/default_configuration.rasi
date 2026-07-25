@@ -13,6 +13,16 @@ configuration {
         sorting-method:    "name";
         directories-first: true;
     }
+
+    /* Entry weights (sort: true only). Keys: desktop id (drun) or completion. */
+    // default-entry-weight: 1.0;
+    // entry-weights {
+    //     "firefox.desktop": 1.5;
+    //     "gimp.desktop": 0.8;
+    // }
+    // weight-patterns {
+    //     "*.sh": 0.7;
+    // }
 }
 
 @theme "default"

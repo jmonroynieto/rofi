@@ -68,6 +68,7 @@
 
 #include "rofi-icon-fetcher.h"
 #include "theme.h"
+#include "weights.h"
 
 #include "timings.h"
 
@@ -588,6 +589,7 @@ static void cleanup(void) {
   rofi_icon_fetcher_destroy();
 
   rofi_theme_free_parsed_files();
+  entry_weights_destroy();
   if (rofi_configuration) {
     rofi_theme_free(rofi_configuration);
     rofi_configuration = NULL;
@@ -1227,6 +1229,8 @@ int main(int argc, char *argv[]) {
   }
 
   parse_keys_abe(bindings);
+  entry_weights_init();
+
   if (find_arg("-dump-theme") >= 0) {
     rofi_theme_print(rofi_theme);
     cleanup();

@@ -194,3 +194,42 @@ Rofi will first parse the config block in `~/.config/rofi/config.rasi`, then
 parse `~/.config/rofi/myConfig.rasi` and then load the theme `myTheme`.  More
 information can be obtained from the **rofi-theme(5)** manpage.  Imports can be
 nested.
+
+## Entry weights (ranking)
+
+When sorting is enabled (`sort: true;`), match scores can be scaled by per-entry
+weight multipliers. Weights are applied **after** the matcher runs and do not
+change matching itself. With `-no-sort` / `sort: false`, weights are ignored so
+input order is preserved.
+
+```css
+configuration {
+    /* Baseline multiplier when no override matches (default 1.0). */
+    default-entry-weight: 1.0;
+
+    /* Exact keys match the mode's entry uid: the desktop id for drun
+     * ("firefox.desktop"), the completion string for other modes (path,
+     * command, …). Quoted property names allow dots and other non-word
+     * characters. */
+    entry-weights {
+        "firefox.desktop": 1.5;
+        "gimp.desktop": 0.8;
+    }
+
+    /* Glob patterns (* and ?); first match wins after exact lookup. */
+    weight-patterns {
+        "*.sh": 0.7;
+        "calc:*": 1.3;
+    }
+}
+```
+
+Semantics:
+
+- **Confidence scorers** (`sorting-method: "fzf"` / `"fzf-v2"`):
+  `final = base × weight`, unless `base <= 0` (a below-baseline match), in
+  which case the weight has no effect — multiplying a non-positive score
+  would flip the intended boost/demote direction.
+- **Distance scorer** (`sorting-method: "normal"` / levenshtein):
+  `final = base ÷ weight`
+- `weight > 1.0` promotes an entry; `weight < 1.0` demotes it.

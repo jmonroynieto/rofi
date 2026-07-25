@@ -107,6 +107,8 @@ Settings config = {
     .sort = FALSE,
     /** Use levenshtein sorting when matching */
     .sorting_method = "normal",
+    /** Default entry weight multiplier (no override). */
+    .default_entry_weight = 1.0,
     /** Case sensitivity of the search */
     .case_sensitive = FALSE,
     /** Case smart of the search */

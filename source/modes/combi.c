@@ -285,6 +285,24 @@ static char *combi_get_completion(const Mode *sw, unsigned int index) {
   return NULL;
 }
 
+static char *combi_get_uid(const Mode *sw, unsigned int index) {
+  CombiModePrivateData *pd = mode_get_private_data(sw);
+  for (unsigned i = 0; i < pd->num_switchers; i++) {
+    if (index >= pd->starts[i] && index < (pd->starts[i] + pd->lengths[i])) {
+      unsigned int local = index - pd->starts[i];
+      Mode *child = pd->switchers[i].mode;
+      char *uid = mode_get_uid(child, local);
+      if (uid != NULL) {
+        return uid;
+      }
+      /* Child has no dedicated uid: use its completion (not combi's !mode prefix). */
+      return mode_get_completion(child, local);
+    }
+  }
+  g_assert_not_reached();
+  return NULL;
+}
+
 static cairo_surface_t *combi_get_icon(const Mode *sw, unsigned int index,
                                        unsigned int height) {
   CombiModePrivateData *pd = mode_get_private_data(sw);
@@ -352,6 +370,7 @@ Mode combi_mode = {.name = "combi",
                    ._destroy = combi_mode_destroy,
                    ._token_match = combi_mode_match,
                    ._get_completion = combi_get_completion,
+                   ._get_uid = combi_get_uid,
                    ._get_display_value = combi_mgrv,
                    ._get_icon = combi_get_icon,
                    ._preprocess_input = combi_preprocess_input,

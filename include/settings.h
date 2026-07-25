@@ -128,6 +128,11 @@ typedef struct {
   SortingMethod sorting_method_enum;
   /** Sorting method. */
   char *sorting_method;
+  /**
+   * Default entry weight multiplier used when no exact or pattern override
+   * matches. Applied only when sorting is enabled. 1.0 leaves ranking unchanged.
+   */
+  double default_entry_weight;
 
   /** Desktop entries to match in drun */
   char *drun_match_fields;

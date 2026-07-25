@@ -534,6 +534,12 @@ if ( queue == NULL ) {
  /* Alias color to text-color */
 <SECTION>"color"            { yylval->sval = g_strdup("text-color"); return T_PROP_NAME;}
 <SECTION>{WORD}   { yylval->sval = g_strdup(yytext); return T_PROP_NAME;}
+ /* Quoted property names (entry weights, globs, desktop ids with dots, …) */
+<SECTION>{STRING} {
+    yytext[yyleng-1] = '\0';
+    yylval->sval = g_strcompress(&yytext[1]);
+    return T_PROP_NAME;
+}
 <NAMESTR>{WORD_ELEMENT}         { yylval->sval = g_strdup(yytext); return T_NAME_ELEMENT;}
 
   /* After Namestr/Classstr we want to go to state str, then to  { */

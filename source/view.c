@@ -48,6 +48,7 @@
 #include "display.h"
 #include "helper-theme.h"
 #include "helper.h"
+#include "weights.h"
 #include "mode.h"
 
 #include "view-internal.h"
@@ -472,22 +473,38 @@ static void filter_elements(thread_state *ts,
       if (config.sort) {
         char *str = mode_get_completion(t->state->sw, i);
         glong slen = g_utf8_strlen(str, -1);
+        /*
+         * Weight key is the mode uid when available (e.g. desktop id),
+         * otherwise the completion string already in hand.
+         */
+        char *uid = mode_get_uid(t->state->sw, i);
+        double weight = entry_weights_lookup(uid ? uid : str);
+        g_free(uid);
         switch (config.sorting_method_enum) {
-        case SORT_FZF:
-          t->state->distance[i] = rofi_scorer_fuzzy_evaluate(
+        case SORT_FZF: {
+          /* fuzzy_evaluate stores lower-is-better; recover conf, weight, re-negate. */
+          int conf = -rofi_scorer_fuzzy_evaluate(
               t->pattern, t->plen, str, slen, t->state->case_sensitive);
+          conf = rofi_apply_entry_weight(conf, weight, ROFI_SCORE_CONFIDENCE);
+          t->state->distance[i] = -conf;
           break;
-        case SORT_FZF_V2:
-          /* The scorer returns a higher-is-better score; the sort orders by
-           * ascending distance, so negate it. */
-          t->state->distance[i] = -rofi_scorer_fzf_v2_evaluate(
+        }
+        case SORT_FZF_V2: {
+          /* Higher-is-better; negate for ascending distance sort. */
+          int conf = rofi_scorer_fzf_v2_evaluate(
               t->pattern, t->plen, str, slen, t->state->case_sensitive);
+          conf = rofi_apply_entry_weight(conf, weight, ROFI_SCORE_CONFIDENCE);
+          t->state->distance[i] = -conf;
           break;
+        }
         case SORT_NORMAL:
-        default:
-          t->state->distance[i] = levenshtein(t->pattern, t->plen, str, slen,
-                                              t->state->case_sensitive);
+        default: {
+          int dist = levenshtein(t->pattern, t->plen, str, slen,
+                                 t->state->case_sensitive);
+          t->state->distance[i] =
+              rofi_apply_entry_weight(dist, weight, ROFI_SCORE_DISTANCE);
           break;
+        }
         }
         g_free(str);
       }

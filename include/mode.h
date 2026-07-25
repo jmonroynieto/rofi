@@ -33,7 +33,7 @@
 G_BEGIN_DECLS
 
 /** ABI version to check if loaded plugin is compatible. */
-#define ABI_VERSION 7u
+#define ABI_VERSION 8u
 
 /**
  * @defgroup MODE Mode
@@ -156,6 +156,18 @@ cairo_surface_t *mode_get_icon(Mode *mode, unsigned int selected_line,
  * @returns allocated string.
  */
 char *mode_get_completion(const Mode *mode, unsigned int selected_line);
+
+/**
+ * @param mode The mode to query
+ * @param selected_line The entry to query
+ *
+ * Return a stable identifier for the entry (for weight keys and similar),
+ * when the mode provides one. If the mode has no dedicated uid, returns
+ * NULL and the caller should use #mode_get_completion instead.
+ *
+ * @returns allocated string, or NULL
+ */
+char *mode_get_uid(const Mode *mode, unsigned int selected_line);
 
 /**
  * @param mode The mode to query

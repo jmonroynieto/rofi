@@ -1578,6 +1578,15 @@ static char *drun_get_completion(const Mode *sw, unsigned int index) {
   return g_strdup_printf("%s", dr->name);
 }
 
+static char *drun_get_uid(const Mode *sw, unsigned int index) {
+  DRunModePrivateData *pd = (DRunModePrivateData *)mode_get_private_data(sw);
+  DRunModeEntry *dr = &(pd->entry_list[index]);
+  if (dr->desktop_id == NULL) {
+    return g_strdup(dr->name);
+  }
+  return g_strdup(dr->desktop_id);
+}
+
 static int drun_token_match(const Mode *data, rofi_int_matcher **tokens,
                             unsigned int index) {
   DRunModePrivateData *rmpd =
@@ -1689,6 +1698,7 @@ Mode drun_mode = {.name = "drun",
                   ._token_match = drun_token_match,
                   ._get_message = drun_get_message,
                   ._get_completion = drun_get_completion,
+                  ._get_uid = drun_get_uid,
                   ._get_display_value = _get_display_value,
                   ._get_icon = _get_icon,
                   ._preprocess_input = NULL,
