@@ -358,6 +358,13 @@ typedef struct rofi_range_pair {
 typedef struct rofi_int_matcher_t {
   GRegex *regex;
   gboolean invert;
+  /**
+   * Set only for the word-edit matcher: the token text, compared word by
+   * word with an edit-distance allowance. NULL for regex-based matchers.
+   */
+  char *word;
+  /** Compare case-insensitively (the word-edit matcher only). */
+  gboolean word_fold;
 } rofi_int_matcher;
 
 /**

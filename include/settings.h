@@ -41,7 +41,9 @@ typedef enum {
   MM_GLOB = 2,
   MM_FUZZY = 3,
   MM_PREFIX = 4,
-  MM_NUM_MATCHERS = 5
+  /** Each token must match a word of the entry, within a length-based edit distance. */
+  MM_WORD_EDIT = 5,
+  MM_NUM_MATCHERS = 6
 } MatchingMethod;
 
 /**
@@ -169,6 +171,10 @@ typedef struct {
   unsigned int parse_known_hosts;
   /** Combi Modes */
   char *combi_modes;
+  /** Mode to switch to when a combi search matches nothing. NULL disables. */
+  char *combi_fallback_mode;
+  /** Fall back when a combi search leaves fewer rows than this. 1 = zero rows. */
+  unsigned int combi_fallback_threshold;
   char *matching;
   MatchingMethod matching_method;
   unsigned int tokenize;

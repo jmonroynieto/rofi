@@ -913,6 +913,22 @@ static gboolean rofi_view_refilter_real(RofiViewState *state) {
   }
   TICK_N("Update filter lines");
 
+  /* Failure trigger: a non-empty search in combi that matches nothing switches
+   * to the configured fallback mode, keeping the typed input. Unset (the
+   * default) leaves combi's behaviour unchanged. */
+  if (state->filtered_lines < config.combi_fallback_threshold &&
+      config.combi_fallback_mode != NULL &&
+      state->sw != NULL && g_strcmp0(mode_get_name(state->sw), "combi") == 0 &&
+      g_strcmp0(config.combi_fallback_mode, "combi") != 0 &&
+      state->text != NULL && state->text->text[0] != '\0') {
+    int fallback = mode_lookup(config.combi_fallback_mode);
+    if (fallback >= 0) {
+      state->retv =
+          MENU_QUICK_SWITCH | ((unsigned int)fallback & MENU_LOWER_MASK);
+      state->quit = TRUE;
+    }
+  }
+
   if (config.auto_select == TRUE && state->filtered_lines == 1 &&
       state->num_lines > 1) {
     (state->selected_line) =

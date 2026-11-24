@@ -116,6 +116,13 @@ The following extra options exists:
 
 -   **keep-filter**: If set, the filter is not cleared.
 
+-   **matching**: `substring` makes this mode match a row only when every
+    whitespace-separated token of the input appears literally in the row's
+    text or meta, case-insensitively. It replaces rofi's configured matcher
+    (for example `fuzzy`) for this mode only. Use it for lists where fuzzy
+    matching would leave a query with rows it does not mean, so that
+    `combi-fallback-threshold` can fire.
+
 -   **new-selection**: If `keep-selection` is set, this allows you to override
     the selected entry (absolute position).
 

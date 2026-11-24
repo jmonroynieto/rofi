@@ -461,10 +461,28 @@ static XrmOption xrmOptions[] = {
     {
         xrm_String,
         CONFIG_DEFAULT,
+        "combi-fallback-mode",
+        {.str = &config.combi_fallback_mode},
+        NULL,
+        "Mode to switch to when a search in combi matches nothing (unset: "
+        "disabled)",
+    },
+    {
+        xrm_Number,
+        CONFIG_DEFAULT,
+        "combi-fallback-threshold",
+        {.num = &config.combi_fallback_threshold},
+        NULL,
+        "Switch to combi-fallback-mode when a combi search leaves fewer rows "
+        "than this. 1 means zero rows.",
+    },
+    {
+        xrm_String,
+        CONFIG_DEFAULT,
         "matching",
         {.str = &config.matching},
         NULL,
-        "Set the matching algorithm. (normal, regex, glob, fuzzy, prefix)",
+        "Set the matching algorithm. (normal, regex, glob, fuzzy, prefix, word-edit)",
     },
     {
         xrm_Boolean,

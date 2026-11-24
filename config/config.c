@@ -127,6 +127,8 @@ Settings config = {
     .parse_known_hosts = TRUE,
     /** Modes to combine into one view. */
     .combi_modes = "window,run",
+    .combi_fallback_mode = NULL,
+    .combi_fallback_threshold = 1,
     .tokenize = TRUE,
     .matching = "normal",
     .matching_method = MM_NORMAL,

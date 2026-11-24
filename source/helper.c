@@ -55,7 +55,7 @@
 #include <unistd.h>
 
 const char *const MatchingMethodStr[MM_NUM_MATCHERS] = {
-    "Normal", "Regex", "Glob", "Fuzzy", "Prefix"};
+    "Normal", "Regex", "Glob", "Fuzzy", "Prefix", "word-edit"};
 
 static int MatchingMethodEnabled[MM_NUM_MATCHERS] = {
     MM_NORMAL,
@@ -146,6 +146,7 @@ int helper_parse_setup(char *string, char ***output, int *length, ...) {
 void helper_tokenize_free(rofi_int_matcher **tokens) {
   for (size_t i = 0; tokens && tokens[i]; i++) {
     g_regex_unref((GRegex *)tokens[i]->regex);
+    g_free(tokens[i]->word);
     g_free(tokens[i]);
   }
   g_free(tokens);
@@ -242,6 +243,106 @@ static inline GRegex *R(const char *s, int case_sensitive) {
       s, G_REGEX_OPTIMIZE | ((case_sensitive) ? 0 : G_REGEX_CASELESS), 0, NULL);
 }
 
+/**
+ * Word-edit matching.
+ *
+ * A token matches an entry when one of the entry's words starts with the
+ * token, or is within a small edit distance of it. The allowance depends on
+ * the token length: none below 4 characters, one edit for 4 to 5, two edits
+ * from 6. The distance is Damerau-Levenshtein (optimal string alignment), so
+ * a transposed pair counts as one edit.
+ *
+ * Unlike the fuzzy matcher, the letters must stay close together, so a random
+ * string does not match a long name by scattering its letters across it.
+ */
+static gunichar *word_edit_ucs4(const char *s, glong *len, gboolean fold) {
+  gunichar *u = g_utf8_to_ucs4_fast(s, -1, len);
+  if (fold) {
+    for (glong i = 0; i < *len; i++) {
+      u[i] = g_unichar_tolower(u[i]);
+    }
+  }
+  return u;
+}
+
+static int word_edit_distance(const gunichar *a, glong n, const gunichar *b,
+                              glong m) {
+  glong w = m + 1;
+  int *d = g_new(int, (n + 1) * (m + 1));
+  for (glong i = 0; i <= n; i++) {
+    d[i * w] = (int)i;
+  }
+  for (glong j = 0; j <= m; j++) {
+    d[j] = (int)j;
+  }
+  for (glong i = 1; i <= n; i++) {
+    for (glong j = 1; j <= m; j++) {
+      int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+      int v = d[(i - 1) * w + j] + 1;
+      int ins = d[i * w + (j - 1)] + 1;
+      int sub = d[(i - 1) * w + (j - 1)] + cost;
+      if (ins < v) {
+        v = ins;
+      }
+      if (sub < v) {
+        v = sub;
+      }
+      if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) {
+        int trans = d[(i - 2) * w + (j - 2)] + 1;
+        if (trans < v) {
+          v = trans;
+        }
+      }
+      d[i * w + j] = v;
+    }
+  }
+  int result = d[n * w + m];
+  g_free(d);
+  return result;
+}
+
+static gboolean word_edit_match(const rofi_int_matcher *tok, const char *text) {
+  glong tn = 0;
+  gunichar *t = word_edit_ucs4(tok->word, &tn, tok->word_fold);
+  if (tn == 0) {
+    g_free(t);
+    return TRUE;
+  }
+  int allowed = tn < 4 ? 0 : (tn < 6 ? 1 : 2);
+  glong len = 0;
+  gunichar *s = word_edit_ucs4(text, &len, tok->word_fold);
+  gboolean found = FALSE;
+  glong start = 0;
+  for (glong i = 0; i <= len && !found; i++) {
+    if (i < len && g_unichar_isalnum(s[i])) {
+      continue;
+    }
+    glong m = i - start;
+    if (m > 0) {
+      if (m >= tn && memcmp(s + start, t, sizeof(gunichar) * tn) == 0) {
+        found = TRUE;
+      } else if (allowed > 0) {
+        glong pm = m < tn ? m : tn;
+        if (word_edit_distance(t, tn, s + start, pm) <= allowed ||
+            word_edit_distance(t, tn, s + start, m) <= allowed) {
+          found = TRUE;
+        }
+      }
+    }
+    start = i + 1;
+  }
+  g_free(s);
+  g_free(t);
+  return found;
+}
+
+static gboolean token_matches(const rofi_int_matcher *tok, const char *text) {
+  if (tok->word != NULL) {
+    return word_edit_match(tok, text);
+  }
+  return g_regex_match(tok->regex, text, 0, NULL);
+}
+
 static rofi_int_matcher *create_regex(const char *input, int case_sensitive) {
   GRegex *retv = NULL;
   gchar *r;
@@ -251,6 +352,16 @@ static rofi_int_matcher *create_regex(const char *input, int case_sensitive) {
     input++;
   }
   switch (config.matching_method) {
+  case MM_WORD_EDIT:
+    /* Keep the token for word_edit_match(). The regex is an escaped literal,
+     * so the matched text can still be highlighted, though typo'd letters are
+     * not highlighted. */
+    rv->word = g_strdup(input);
+    rv->word_fold = !case_sensitive;
+    r = g_regex_escape_string(input, -1);
+    retv = R(r, case_sensitive);
+    g_free(r);
+    break;
   case MM_GLOB:
     r = glob_to_regex(input);
     retv = R(r, case_sensitive);
@@ -545,13 +656,13 @@ int helper_token_match(rofi_int_matcher *const *tokens, const char *input) {
     if (config.normalize_match) {
       char *r = utf8_helper_simplify_string(input);
       for (int j = 0; match && tokens[j]; j++) {
-        match = g_regex_match(tokens[j]->regex, r, 0, NULL);
+        match = token_matches(tokens[j], r);
         match ^= tokens[j]->invert;
       }
       g_free(r);
     } else {
       for (int j = 0; match && tokens[j]; j++) {
-        match = g_regex_match(tokens[j]->regex, input, 0, NULL);
+        match = token_matches(tokens[j], input);
         match ^= tokens[j]->invert;
       }
     }
@@ -720,7 +831,7 @@ int config_sanity_check(void) {
           g_string_append_printf(msg,
                                  "\t<b>config.matching</b>=%s is not a valid "
                                  "matching strategy.\nValid options are: glob, "
-                                 "regex, fuzzy, prefix or normal.\n",
+                                 "regex, fuzzy, prefix, word-edit or normal.\n",
                                  *str);
           found_error = 1;
         }

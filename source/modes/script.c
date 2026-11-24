@@ -80,6 +80,11 @@ typedef struct {
 
   gboolean use_hot_keys;
 
+  /** matching: substring. Replaces rofi's configured matcher for this mode. */
+  gboolean strict_match;
+  /** Lower-cased whitespace-separated input tokens, NULL-terminated. */
+  char **strict_tokens;
+
   int switch_mode;
 } ScriptModePrivateData;
 
@@ -178,6 +183,8 @@ static void parse_header_entry(Mode *sw, char *line, ssize_t length) {
       pd->keep_selection = (strcasecmp(value, "true") == 0);
     } else if (strcasecmp(line, "keep-filter") == 0) {
       pd->keep_filter = (strcasecmp(value, "true") == 0);
+    } else if (strcasecmp(line, "matching") == 0) {
+      pd->strict_match = (strcasecmp(value, "substring") == 0);
     } else if (strcasecmp(line, "new-selection") == 0) {
       pd->new_selection = (int64_t)g_ascii_strtoll(value, NULL, 0);
     } else if (strcasecmp(line, "data") == 0) {
@@ -209,6 +216,7 @@ static DmenuScriptEntry *execute_executor(Mode *sw, char *arg,
   pd->new_selection = -1;
   pd->keep_selection = 0;
   pd->keep_filter = 0;
+  pd->strict_match = FALSE;
   // Environment
   char **env = g_get_environ();
 
@@ -459,6 +467,7 @@ static void script_mode_destroy(Mode *sw) {
     g_free(rmpd->data);
     g_free(rmpd->urgent_list);
     g_free(rmpd->active_list);
+    g_strfreev(rmpd->strict_tokens);
     g_free(rmpd);
     sw->private_data = NULL;
   }
@@ -509,6 +518,52 @@ static char *_get_display_value(const Mode *sw, unsigned int selected_line,
   }
 }
 
+/**
+ * Input hook: for a mode with matching: substring, keep the input as
+ * lower-cased tokens. Rofi's configured matcher (fuzzy by default) is then
+ * bypassed for this mode's rows, so a query can leave the mode with no rows.
+ */
+static char *script_preprocess_input(Mode *sw, const char *input) {
+  ScriptModePrivateData *rmpd = sw->private_data;
+  g_strfreev(rmpd->strict_tokens);
+  rmpd->strict_tokens = NULL;
+  if (rmpd->strict_match && input != NULL) {
+    gchar **parts = g_strsplit_set(input, " \t", -1);
+    GPtrArray *tokens = g_ptr_array_new();
+    for (gchar **p = parts; p != NULL && *p != NULL; p++) {
+      if (**p == '\0') {
+        continue;
+      }
+      g_ptr_array_add(tokens, g_utf8_strdown(*p, -1));
+    }
+    g_ptr_array_add(tokens, NULL);
+    rmpd->strict_tokens = (char **)g_ptr_array_free(tokens, FALSE);
+    g_strfreev(parts);
+  }
+  return g_strdup(input);
+}
+
+/** Substring match of every strict token against entry text or meta. */
+static int script_strict_match(const ScriptModePrivateData *rmpd,
+                               unsigned int index) {
+  const char *fields[2] = {rmpd->cmd_list[index].entry,
+                           rmpd->cmd_list[index].meta};
+  for (int j = 0; rmpd->strict_tokens[j] != NULL; j++) {
+    gboolean found = FALSE;
+    for (int f = 0; f < 2 && !found; f++) {
+      if (fields[f] != NULL) {
+        char *low = g_utf8_strdown(fields[f], -1);
+        found = strstr(low, rmpd->strict_tokens[j]) != NULL;
+        g_free(low);
+      }
+    }
+    if (!found) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 static int script_token_match(const Mode *sw, rofi_int_matcher **tokens,
                               unsigned int index) {
   ScriptModePrivateData *rmpd = sw->private_data;
@@ -518,6 +573,11 @@ static int script_token_match(const Mode *sw, rofi_int_matcher **tokens,
   if (rmpd->cmd_list[index].permanent == TRUE) {
     // Always match
     return 1;
+  }
+  if (rmpd->strict_match) {
+    return rmpd->strict_tokens != NULL
+               ? script_strict_match(rmpd, index)
+               : 1;
   }
 
   if (rmpd->do_markup) {
@@ -678,7 +738,7 @@ Mode *script_mode_parse_setup(const char *str) {
     sw->_token_match = script_token_match;
     sw->_get_message = script_get_message;
     sw->_get_icon = script_get_icon;
-    sw->_get_completion = NULL, sw->_preprocess_input = NULL,
+    sw->_get_completion = NULL, sw->_preprocess_input = script_preprocess_input,
     sw->_get_display_value = _get_display_value;
     sw->type = MODE_TYPE_SWITCHER;
     return sw;
@@ -702,7 +762,7 @@ Mode *script_mode_parse_setup(const char *str) {
     sw->_token_match = script_token_match;
     sw->_get_message = script_get_message;
     sw->_get_icon = script_get_icon;
-    sw->_get_completion = NULL, sw->_preprocess_input = NULL,
+    sw->_get_completion = NULL, sw->_preprocess_input = script_preprocess_input,
     sw->_get_display_value = _get_display_value;
     sw->type = MODE_TYPE_SWITCHER;
 

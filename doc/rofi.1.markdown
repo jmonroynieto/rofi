@@ -371,6 +371,12 @@ Currently, the following methods are supported:
 - **glob**: match a glob pattern
 - **fuzzy**: do a fuzzy match
 - **prefix**: match prefix
+- **word-edit**: match a word of the entry, starting with the token or within
+  a small edit distance of it. Tokens shorter than 4 characters must match a
+  word start exactly; 4 to 5 characters allow one edit, and 6 or more allow
+  two. An edit is an insertion, deletion, substitution or transposition of
+  adjacent letters. Letters must stay close together, so a random string does
+  not match a long name by scattering its letters across it.
 
 Default: *normal*
 

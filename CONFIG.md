@@ -195,6 +195,51 @@ parse `~/.config/rofi/myConfig.rasi` and then load the theme `myTheme`.  More
 information can be obtained from the **rofi-theme(5)** manpage.  Imports can be
 nested.
 
+## Combi fallback (failure trigger)
+
+When a search in combi leaves too few rows, rofi can switch to another mode
+and keep the typed text. This is off unless `combi-fallback-mode` is set.
+
+- **combi-fallback-mode**: name of a mode in `modes` to switch to. Set it to
+  a script alias such as `recent` and list that alias in `modes` too.
+- **combi-fallback-threshold** (default `1`): switch when the combi list has
+  fewer rows than this. `1` means zero rows, the original behaviour. Raising
+  it makes the switch fire earlier, at the price of switching away on
+  searches that still had a few good matches.
+
+```rasi
+configuration {
+    modes: "combi,recent:/path/to/recent-places";
+    combi-modes: "window,drun";
+    combi-fallback-mode: "recent";
+    combi-fallback-threshold: 1;
+}
+```
+
+Only the combi mode triggers this. Rows from the fallback mode are not counted.
+
+The threshold is a trade-off, not a free improvement. It was fitted on
+synthetic queries (see the `trigger-model` notes in skriptoj): at `1`, about
+half of random nonsense queries still show rows, but no app search is lost;
+at `4`, most nonsense falls back, and about one third of deliberate mistakes
+in app names fall back too. Measure your own desktop with the trigger model
+before raising it.
+
+## Word-edit matching
+
+`matching: "word-edit";` (or `-matching word-edit`) matches each token against
+the words of an entry rather than against its letters in order. A token
+matches a word that starts with it, or a word within a small edit distance:
+none for tokens under 4 characters, one edit for 4 to 5, two from 6. Typos
+such as `thundrebird` still find `Thunderbird`, and a random string such as
+`qzxkw` no longer reaches a long name.
+
+It replaces the fuzzy matcher for the mode it is set in. Highlighting marks
+only the exact text the token has, not the typo'd letters. Measured on a
+desktop of about 140 entries, it leaves almost no nonsense query with rows
+while losing no intent or typo query; see `trigger-model/README.md` in
+skriptoj.
+
 ## Entry and mode weights (ranking)
 
 When sorting is enabled (`sort: true;`), match scores can be scaled by

@@ -83,6 +83,39 @@ void display_startup_notification(
     G_GNUC_UNUSED gpointer *user_data) {}
 START_TEST(test_tokenizer_free) { helper_tokenize_free(NULL); }
 END_TEST
+START_TEST(test_tokenizer_match_word_edit) {
+  config.matching_method = MM_WORD_EDIT;
+  rofi_int_matcher **tokens = helper_tokenize("thunderbird", FALSE);
+  /* Exact word and prefix. */
+  ck_assert_int_eq(helper_token_match(tokens, "Thunderbird (Mail Client)"), TRUE);
+  ck_assert_int_eq(helper_token_match(tokens, "thunderbi"), FALSE);
+  helper_tokenize_free(tokens);
+
+  tokens = helper_tokenize("thunder", FALSE);
+  ck_assert_int_eq(helper_token_match(tokens, "Thunderbird"), TRUE);
+  helper_tokenize_free(tokens);
+
+  /* Transposed letters, one edit for a six-letter word. */
+  tokens = helper_tokenize("thundrebird", FALSE);
+  ck_assert_int_eq(helper_token_match(tokens, "Thunderbird"), TRUE);
+  helper_tokenize_free(tokens);
+
+  /* Two edits are allowed from six characters. */
+  tokens = helper_tokenize("thundrbrd", FALSE);
+  ck_assert_int_eq(helper_token_match(tokens, "Thunderbird"), TRUE);
+  helper_tokenize_free(tokens);
+
+  /* Short tokens allow no edits: "ab" is not a word of "abacus". */
+  tokens = helper_tokenize("ba", FALSE);
+  ck_assert_int_eq(helper_token_match(tokens, "abacus"), FALSE);
+  helper_tokenize_free(tokens);
+
+  /* Scattered letters no longer match a long name. */
+  tokens = helper_tokenize("qzxkw", FALSE);
+  ck_assert_int_eq(helper_token_match(tokens, "Thunderbird (Mail Client)"), FALSE);
+  helper_tokenize_free(tokens);
+}
+END_TEST
 START_TEST(test_tokenizer_match_normal_single_ci) {
   config.matching_method = MM_NORMAL;
   rofi_int_matcher **tokens = helper_tokenize("noot", FALSE);
@@ -392,6 +425,13 @@ static Suite *helper_tokenizer_suite(void) {
 
   s = suite_create("Tokenizer");
 
+  /* Word-edit matching */
+  {
+    TCase *tc_word_edit;
+    tc_word_edit = tcase_create("WordEdit");
+    tcase_add_test(tc_word_edit, test_tokenizer_match_word_edit);
+    suite_add_tcase(s, tc_word_edit);
+  }
   /* Core test case */
   {
     TCase *tc_core;
